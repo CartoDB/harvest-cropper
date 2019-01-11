@@ -3,8 +3,10 @@ from setuptools import setup, find_packages
 import os
 from harvest_explorer.cli import VERSION
 
+
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
+
 
 try:
     with open('requirements.txt') as f:

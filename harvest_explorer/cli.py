@@ -13,6 +13,7 @@ logging.basicConfig(
     datefmt='%I:%M:%S %p')
 logger = logging.getLogger('harvest_mapper')
 
+
 def print_project(project):
     is_active = '[inactive]' if not project['is_active'] else ''
     id = project['id']
@@ -20,9 +21,10 @@ def print_project(project):
 
     client = project['client']['name']
     client_short = client[:17] + (client[17:] and '...')
-    
+
     color = "green" if project['is_active'] else "yellow"
-    click.secho(f'[{id}] [{client_short:<20s}] {name} {is_active}',fg=color)
+    click.secho(f'[{id}] [{client_short:<20s}] {name} {is_active}', fg=color)
+
 
 def print_client(client):
     is_active = '[inactive]' if not client['is_active'] else ''
@@ -32,6 +34,7 @@ def print_client(client):
 
     click.secho(f'[{id}] {name} {is_active}', fg=color)
 
+
 def print_task(task):
     is_active = '[inactive]' if not task['is_active'] else ''
     color = "green" if task['is_active'] else "yellow"
@@ -39,6 +42,7 @@ def print_task(task):
     id = task['task']['id']
     name = task['task']['name']
     click.secho(f'[{id}] {name} {is_active}', fg=color)
+
 
 def print_entry(entry):
     id = entry['id']
@@ -49,7 +53,9 @@ def print_entry(entry):
     notes = entry['notes']
     user = entry['user']['name']
 
-    click.secho(f'[{id}] - [{user:<15s}] - [{task_id} {task_name:<20s}] [{spent_date}] [{hours:>5.2f}] {notes}', fg="green")
+    click.secho(
+        f'[{id}] - [{user:<15s}] - [{task_id} {task_name:<20s}] [{spent_date}] [{hours:>5.2f}] {notes}', fg="green")
+
 
 @click.group()
 @click.option('-l', '--loglevel', type=click.Choice(['error', 'warn', 'info', 'debug']), default='warn')
@@ -74,7 +80,8 @@ def cli(ctx, loglevel, token, accountid):
     # by means other than the `if` block below
     ctx.ensure_object(dict)
 
-    ctx.obj['harvest'] = Harvest(logger=logger, token=token, accountid=accountid)
+    ctx.obj['harvest'] = Harvest(
+        logger=logger, token=token, accountid=accountid)
 
 
 @cli.command(help="Show this program version")
@@ -103,32 +110,32 @@ def company(ctx):
         data = harvest_obj.company()
         click.echo(json.dumps(data))
     except Exception as e:
-        click.secho(str(e),fg='red')
+        click.secho(str(e), fg='red')
         ctx.abort
 
 
 @cli.command(help="Get clients data")
-@click.option('-f','--format','format', default='text', type=click.Choice(['text','json']), help="Output format")
-@click.option('-a','--active','active', type=click.Choice(['all','active','inactive']), default='all', help="Filter by status")
+@click.option('-f', '--format', 'format', default='text', type=click.Choice(['text', 'json']), help="Output format")
+@click.option('-a', '--active', 'active', type=click.Choice(['all', 'active', 'inactive']), default='all', help="Filter by status")
 @click.pass_context
-def clients(ctx,format,active):
+def clients(ctx, format, active):
     harvest_obj = ctx.obj['harvest']
     try:
         data = harvest_obj.clients(active)
-        if format=="text":
+        if format == "text":
             for client in data:
                 print_client(client)
         else:
             click.echo(json.dumps(data))
     except Exception as e:
-        click.secho(str(e),fg='red')
+        click.secho(str(e), fg='red')
         ctx.abort
 
 
 @cli.command(help="Get the list of projects")
-@click.option('-f','--format','format', default='text', type=click.Choice(['text','json']), help="Output format")
-@click.option('-a','--active','active', type=click.Choice(['all','active','inactive']), default='all', help="Filter by status")
-@click.option('-c','--client','client', default=None, type=str, help="Filter by client identifier")
+@click.option('-f', '--format', 'format', default='text', type=click.Choice(['text', 'json']), help="Output format")
+@click.option('-a', '--active', 'active', type=click.Choice(['all', 'active', 'inactive']), default='all', help="Filter by status")
+@click.option('-c', '--client', 'client', default=None, type=str, help="Filter by client identifier")
 @click.pass_context
 def projects(ctx, format, active, client):
     harvest_obj = ctx.obj['harvest']
@@ -141,24 +148,26 @@ def projects(ctx, format, active, client):
         else:
             click.echo(json.dumps(projects))
     except Exception as e:
-        click.secho(str(e),fg='red')
+        click.secho(str(e), fg='red')
         ctx.abort
 
+
 @cli.command(help="Get a project")
-@click.option('-i','--id','project_id', required=True, type=int, help="Identifier of your project")
+@click.option('-i', '--id', 'project_id', required=True, type=int, help="Identifier of your project")
 @click.pass_context
-def project(ctx,project_id):
+def project(ctx, project_id):
     harvest_obj = ctx.obj['harvest']
     try:
         project = harvest_obj.project(project_id)
         click.echo(json.dumps(project))
     except Exception as e:
-        click.secho(str(e),fg='red')
+        click.secho(str(e), fg='red')
         ctx.abort
 
+
 @cli.command(name="tasks", help="Tasks assignments")
-@click.option('-i','--id','project_id', default=None, type=int, help="Identifier of your project")
-@click.option('-f','--format','format', default='text', type=click.Choice(['text','json']), help="Output format")
+@click.option('-i', '--id', 'project_id', default=None, type=int, help="Identifier of your project")
+@click.option('-f', '--format', 'format', default='text', type=click.Choice(['text', 'json']), help="Output format")
 @click.pass_context
 def task_assignments(ctx, format, project_id):
     harvest_obj = ctx.obj['harvest']
@@ -170,38 +179,39 @@ def task_assignments(ctx, format, project_id):
         else:
             click.echo(json.dumps(data))
     except Exception as e:
-        click.secho(str(e),fg='red')
+        click.secho(str(e), fg='red')
         ctx.abort
 
 
 @cli.command(name="time-entries", help="Get time entries for a given project")
-@click.option('-f','--format','format', default='text', type=click.Choice(['text','json']), help="Output format")
-@click.option('-i','--id','project_id', type=int, help="Identifier of your project")
+@click.option('-f', '--format', 'format', default='text', type=click.Choice(['text', 'json']), help="Output format")
+@click.option('-i', '--id', 'project_id', type=int, help="Identifier of your project")
 @click.pass_context
 def time_entries(ctx, format, project_id):
     harvest_obj = ctx.obj['harvest']
     try:
         data = harvest_obj.time_entries(project_id)
-        if format=="text":
+        if format == "text":
             for entry in data:
-                print_entry(entry) 
+                print_entry(entry)
         else:
             click.echo(json.dumps(data))
     except Exception as e:
-        click.secho(str(e),fg='red')
+        click.secho(str(e), fg='red')
         ctx.abort
 
 
 @cli.command(name="update-time-entry", help="Update a time entry with a new project and task identifiers")
-@click.option('-te','--time-entry-id','time_entry_id', type=int, help="Identifier of the time entry to modify")
-@click.option('-pi','--project-id','project_id', type=int, help="Identifier of the project")
-@click.option('-ti','--task-id','task_id', type=int, help="Identifier of the task")
+@click.option('-te', '--time-entry-id', 'time_entry_id', type=int, help="Identifier of the time entry to modify")
+@click.option('-pi', '--project-id', 'project_id', type=int, help="Identifier of the project")
+@click.option('-ti', '--task-id', 'task_id', type=int, help="Identifier of the task")
 @click.pass_context
 def update_time_entry(ctx, time_entry_id, project_id, task_id):
     harvest_obj = ctx.obj['harvest']
     try:
-        data = harvest_obj.update_time_entry(time_entry_id, project_id, task_id)
+        data = harvest_obj.update_time_entry(
+            time_entry_id, project_id, task_id)
         click.echo(json.dumps(data))
     except Exception as e:
-        click.secho(str(e),fg='red')
+        click.secho(str(e), fg='red')
         ctx.abort
