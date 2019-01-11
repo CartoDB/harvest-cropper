@@ -3,8 +3,7 @@ from click import ClickException
 import logging
 import json
 
-from harvest_mapper.harvest import Harvest
-
+from harvest_explorer.harvest import Harvest
 
 VERSION = "0.0.1"
 
@@ -53,7 +52,7 @@ def print_entry(entry):
     click.secho(f'[{id}] - [{user:<15s}] - [{task_id} {task_name:<20s}] [{spent_date}] [{hours:>5.2f}] {notes}', fg="green")
 
 @click.group()
-@click.option('-l', '--loglevel', type=click.Choice(['error', 'warn', 'info', 'debug']), default='debug')
+@click.option('-l', '--loglevel', type=click.Choice(['error', 'warn', 'info', 'debug']), default='warn')
 @click.option('-t', '--token', required=True, type=str, envvar='HARVEST_TOKEN',
               help="Your Harvest Auth Token, you can set this using the environment variable HARVEST_TOKEN")
 @click.option('-a', '--account-id', 'accountid', required=True, type=str, envvar='HARVEST_ID',
@@ -157,7 +156,7 @@ def project(ctx,project_id):
         click.secho(str(e),fg='red')
         ctx.abort
 
-@cli.command(name="task-assignments", help="Task assignments")
+@cli.command(name="tasks", help="Tasks assignments")
 @click.option('-i','--id','project_id', default=None, type=int, help="Identifier of your project")
 @click.option('-f','--format','format', default='text', type=click.Choice(['text','json']), help="Output format")
 @click.pass_context

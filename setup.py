@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from setuptools import setup, find_packages
 import os
-from harvest_mapper.app import VERSION
+from harvest_explorer.cli import VERSION
 
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
@@ -14,7 +14,7 @@ except:
     import sys
     sys.exit(1)
 
-setup(name="harvest-task-mapper",
+setup(name="harvest-explorer",
       author="Jorge Sanz",
       author_email="jsanz@carto.com",
       description="An app to migrate Harvest tasks",
@@ -34,6 +34,6 @@ setup(name="harvest-task-mapper",
       include_package_data=True,
       entry_points='''
 [console_scripts]
-harvest=harvest_mapper.app:cli
+harvest-explorer=harvest_explorer.cli:cli
       '''
       )

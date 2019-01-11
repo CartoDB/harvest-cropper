@@ -1,6 +1,5 @@
 import requests
 
-
 class Harvest(object):
 
     API_URL = "https://api.harvestapp.com/api/v2/"
