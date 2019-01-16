@@ -41,7 +41,7 @@ class Harvest(object):
             return r.json()
         else:
             self.logger.debug(r.text)
-            raise Exception('Error accessing the /me.json endpoint')
+            raise Exception('Error accessing the {} endpoint'.format(endpoint))
 
     def _get_paged_results(self, endpoint, objectid, parameters={}):
         """
@@ -124,6 +124,21 @@ class Harvest(object):
             params['is_active'] = "false"
 
         return self._get_paged_results('/clients', 'clients', params)
+        
+    def users(self, active="all"):
+        """
+        Gets a list of users
+
+        Parameters:
+            active (str): filter the active users (all, inactive, active)
+        """
+        params = {}
+        if active == 'active':
+            params['is_active'] = "true"
+        elif active == 'inactive':
+            params['is_active'] = "false"
+
+        return self._get_paged_results('/users', 'users', params)
 
     def task_assignments(self, projectid=None):
         """
@@ -138,16 +153,29 @@ class Harvest(object):
             endpoint = '/task_assignments'
         return self._get_paged_results(endpoint, 'task_assignments')
 
-    def time_entries(self, projectid):
+    def time_entries(self, projectid, **kwargs):
         """
         Gets the list of timesheet entries associated to a project
 
         Parameters:
             projectid (int): the project identifier
         """
-        return self._get_paged_results('/time_entries', 'time_entries', {'project_id': projectid})
+        params = {'project_id': projectid}
+        for key, value in kwargs.items():
+            params[key] = value
 
-    def update_time_entry(self, time_entry_id, project_id, task_id):
+        return self._get_paged_results('/time_entries', 'time_entries', params)
+    
+    def time_entry(self, time_entry_id):
+        """
+        Retrieves a single time entry
+
+        Parameters:
+            time_entry_id(int) Entry identifier
+        """
+        return self._call('/time_entries/{}'.format(time_entry_id))
+
+    def update_time_entry(self, time_entry_id, project_id, task_id, notes=None):
         """
         Updates a timesheet entry to be associated to a project and task
 
@@ -161,6 +189,10 @@ class Harvest(object):
             'project_id': project_id,
             'task_id': task_id
         }
+
+        if notes:
+            params['notes'] = notes
+
 
         self.logger.debug('Calling PATCH for updating the time entry')
         r = self.session.patch(url=url, params=params)
