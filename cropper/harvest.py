@@ -124,7 +124,7 @@ class Harvest(object):
             params['is_active'] = "false"
 
         return self._get_paged_results('/clients', 'clients', params)
-        
+
     def users(self, active="all"):
         """
         Gets a list of users
@@ -165,7 +165,7 @@ class Harvest(object):
             params[key] = value
 
         return self._get_paged_results('/time_entries', 'time_entries', params)
-    
+
     def time_entry(self, time_entry_id):
         """
         Retrieves a single time entry
@@ -192,7 +192,6 @@ class Harvest(object):
 
         if notes:
             params['notes'] = notes
-
 
         self.logger.debug('Calling PATCH for updating the time entry')
         r = self.session.patch(url=url, params=params)

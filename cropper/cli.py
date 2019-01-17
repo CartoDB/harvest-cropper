@@ -1,11 +1,17 @@
+import sys
 import click
 from click import ClickException
 import logging
 import json
+import csv
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
 
-from harvest_explorer.harvest import Harvest
+from cropper.harvest import Harvest
 
-VERSION = "0.0.1"
+from cropper import VERSION
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -13,69 +19,63 @@ logging.basicConfig(
     datefmt='%I:%M:%S %p')
 logger = logging.getLogger('harvest_mapper')
 
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
-def print_project(project):
-    is_active = '[inactive]' if not project['is_active'] else ''
-    id = project['id']
-    name = project['name']
+def flatten(obj, entries):
+    """
+    Converts an object into a list of simple value pairs
+    based on a list of entries to get and using the
+    rule of nested object keys are declared as double underscores
+    So to fro {'a': 1, 'b' : { 'b1': 3 }} you can get the 3 as 'b__b1'
+    """
 
-    client = project['client']['name']
-    client_short = client[:17] + (client[17:] and '...')
+    result = {}
 
-    color = "green" if project['is_active'] else "yellow"
-    click.secho(f'[{id}] [{client_short:<20s}] {name} {is_active}', fg=color)
+    for entry in entries:
+        parts = entry.split('__')
+        value_parts = obj[parts[0]]
+        while len(parts) > 1:
+            parts = parts[1:]
+            value_parts = value_parts[parts[0]]
+        result[entry] = value_parts.replace('\r\n',' ') if type(value_parts) is str else value_parts
 
+    return result
 
-def print_client(client):
-    is_active = '[inactive]' if not client['is_active'] else ''
-    color = "green" if client['is_active'] else "yellow"
-    id = client['id']
-    name = client['name']
+def print_obj(obj, entries, print_active=False):
+    """
+    Returns a valid CSV row for an object and a list
+    of key values to search from, it accepts nested keys using
+    the double underscore
+    """
+    
+    if print_active:
+        color = "green" if obj['is_active'] else "yellow"
+    else:
+        color = "green"
+        
+    with StringIO(newline='') as writer:
+        csv_writer = csv.DictWriter(writer, fieldnames=entries)
+        csv_writer.writerow(flatten(obj,entries))
+        click.secho(writer.getvalue().strip('\r\n'),fg=color)
 
-    click.secho(f'[{id}] {name} {is_active}', fg=color)
+def print_list_objs(entries, headers, print_active=False):
+    click.secho(",".join(headers),fg="green")
+    for entry in entries:
+        print_obj(entry, headers, print_active)
 
-
-def print_task(task):
-    is_active = '[inactive]' if not task['is_active'] else ''
-    color = "green" if task['is_active'] else "yellow"
-
-    id = task['task']['id']
-    name = task['task']['name']
-    click.secho(f'[{id}] {name} {is_active}', fg=color)
-
-
-def print_entry(entry):
-    id = entry['id']
-    spent_date = entry['spent_date']
-    task_id = entry['task']['id']
-    task_name = entry['task']['name']
-    hours = entry['hours']
-    notes = entry['notes']
-    user = entry['user']['name']
-
-    click.secho(
-        f'[{id}] - [{user:<15s}] - [{task_id} {task_name:<20s}] [{spent_date}] [{hours:>5.2f}] {notes}', fg="green")
-
-def print_user(user):
-    is_active = '[inactive]' if not user['is_active'] else ''
-    color = "green" if user['is_active'] else "yellow"
-
-    id = user['id']
-    name = '{} {}'.format(user['first_name'],user['last_name'])
-    is_admin = '[admin]' if user['is_admin'] else ''
-
-    click.secho(
-        f'[{id}] - {name:<15s} - {is_admin} - {is_active}', fg=color)
-
-
-@click.group()
+@click.group(context_settings=CONTEXT_SETTINGS)
 @click.option('-l', '--loglevel', type=click.Choice(['error', 'warn', 'info', 'debug']), default='warn')
 @click.option('-t', '--token', required=True, type=str, envvar='HARVEST_TOKEN',
               help="Your Harvest Auth Token, you can set this using the environment variable HARVEST_TOKEN")
 @click.option('-a', '--account-id', 'accountid', required=True, type=str, envvar='HARVEST_ID',
               help="Your Harvest Account ID, you can set this using the environment variable HARVEST_ID")
+@click.version_option(VERSION, '--version', '-v')
 @click.pass_context
 def cli(ctx, loglevel, token, accountid):
+    """
+    This command line tool helps you explore your Harvest account and
+    modify time entries. Find more details on each command help instructions.
+    """
     if loglevel == 'error':
         logger.setLevel(logging.ERROR)
     elif loglevel == 'warn':
@@ -87,17 +87,16 @@ def cli(ctx, loglevel, token, accountid):
     else:
         ClickException('no log level')
 
-    # ensure that ctx.obj exists and is a dict (in case `cli()` is called
-    # by means other than the `if` block below
-    ctx.ensure_object(dict)
+    if ctx.invoked_subcommand is None:
+        click.echo('I was invoked without subcommand')
+    else:            
+        # ensure that ctx.obj exists and is a dict (in case `cli()` is called
+        # by means other than the `if` block below
+        ctx.ensure_object(dict)
 
-    ctx.obj['harvest'] = Harvest(
-        logger=logger, token=token, accountid=accountid)
-
-
-@cli.command(help="Show this program version")
-def version():
-    click.echo(VERSION)
+        ctx.obj['harvest'] = Harvest(
+            logger=logger, token=token, accountid=accountid)
+    
 
 
 @cli.command(help="Checks connectivity with Harvest and shows user info")
@@ -134,8 +133,8 @@ def clients(ctx, format, active):
     try:
         data = hobj.clients(active)
         if format == "text":
-            for client in data:
-                print_client(client)
+            headers = ['id','name','is_active']
+            print_list_objs(data, headers, True)
         else:
             click.echo(json.dumps(data))
     except Exception as e:
@@ -151,8 +150,8 @@ def users(ctx, format, active):
     try:
         data = hobj.users(active)
         if format == "text":
-            for user in data:
-                print_user(user)
+            headers = ['id','first_name','last_name','is_admin']
+            print_list_objs(data, headers, True)
         else:
             click.echo(json.dumps(data))
     except Exception as e:
@@ -168,26 +167,30 @@ def users(ctx, format, active):
 def projects(ctx, format, active, client):
     hobj = ctx.obj['harvest']
     try:
-        projects = hobj.projects(active, client)
+        data = hobj.projects(active, client)
         if format == "text":
-            click.echo('List of current projects in Harvest: \r\n')
-            for project in projects:
-                print_project(project)
+            headers = ['id','name','client__name','is_active']
+            print_list_objs(data, headers, True)
         else:
-            click.echo(json.dumps(projects))
+            click.echo(json.dumps(data))
     except Exception as e:
         click.secho(str(e), fg='red')
         ctx.abort
 
 
 @cli.command(help="Get a project")
-@click.option('-pi', '--project-id', 'project_id', required=True, type=int, help="Identifier of your project")
+@click.option('-f', '--format', 'format', default='json', type=click.Choice(['text', 'json']), help="Output format")
+@click.argument('project_id', type=int)
 @click.pass_context
-def project(ctx, project_id):
+def project(ctx, format, project_id):
     hobj = ctx.obj['harvest']
     try:
-        project = hobj.project(project_id)
-        click.echo(json.dumps(project))
+        data = hobj.project(project_id)
+        if format == "text":
+            headers = ['id','name', 'code', 'client__name','is_active', 'is_billable' ,'created_at','updated_at','notes']
+            print_list_objs([data], headers, True)
+        else:
+            click.echo(json.dumps(data))
     except Exception as e:
         click.secho(str(e), fg='red')
         ctx.abort
@@ -195,15 +198,15 @@ def project(ctx, project_id):
 
 @cli.command(name="tasks", help="Tasks assignments")
 @click.option('-f', '--format', 'format', default='text', type=click.Choice(['text', 'json']), help="Output format")
-@click.option('-pi', '--project-id', 'project_id', default=None, type=int, help="Identifier of your project")
+@click.argument('project_id', type=int)
 @click.pass_context
 def task_assignments(ctx, format, project_id):
     hobj = ctx.obj['harvest']
     try:
         data = hobj.task_assignments(project_id)
         if format == "text":
-            for task in data:
-                print_task(task)
+            headers = ['id','name','is_active']
+            print_list_objs(data, headers, True)
         else:
             click.echo(json.dumps(data))
     except Exception as e:
@@ -212,10 +215,10 @@ def task_assignments(ctx, format, project_id):
 
 
 @cli.command(name="time-entries", help="Get time entries for a given project")
-@click.option('-f', '--format', 'format', default='text', type=click.Choice(['text', 'json']), help="Output format")
-@click.option('-pi', '--project-id', 'project_id', required=True, type=int, help="Identifier of your project")
+@click.option('-f', '--format', 'format', default='text', required=False, type=click.Choice(['text', 'json']), help="Output format")
 @click.option('-ti', '--task-id', 'task_id', required=False, type=int, help="Filter by task")
 @click.option('-ui', '--user-id', 'user_id', required=False, type=int, help="Filter by user")
+@click.argument('project_id',type=int)
 @click.pass_context
 def time_entries(ctx, format, project_id, task_id, user_id):
     hobj = ctx.obj['harvest']
@@ -224,8 +227,8 @@ def time_entries(ctx, format, project_id, task_id, user_id):
         if task_id:
             data = list(filter(lambda entry: entry['task']['id'] == task_id, data))
         if format == "text":
-            for entry in data:
-                print_entry(entry)
+            headers = ['id','user__name','task__id','task__name', 'spent_date', 'hours','notes']
+            print_list_objs(data, headers, False)
         else:
             click.echo(json.dumps(data))
     except Exception as e:
@@ -234,14 +237,15 @@ def time_entries(ctx, format, project_id, task_id, user_id):
 
 @cli.command(name="time-entry", help="Get a time entries")
 @click.option('-f', '--format', 'format', default='text', type=click.Choice(['text', 'json']), help="Output format")
-@click.option('-tei', '--tiem-entry-id', 'time_entry_id', required=True, type=int, help="Identifier of your entry")
+@click.argument('time_entry_id', type=int)
 @click.pass_context
 def time_entry(ctx, format, time_entry_id):
     hobj = ctx.obj['harvest']
     try:
         entry = hobj.time_entry(time_entry_id)
         if format == "text":
-            print_entry(entry)
+            headers = ['id','user__name','task__id','task__name', 'spent_date', 'hours','notes']
+            print_list_objs([data], headers, False)
         else:
             click.echo(json.dumps(entry))
     except Exception as e:
@@ -250,9 +254,9 @@ def time_entry(ctx, format, time_entry_id):
 
 
 @cli.command(name="update-time-entry", help="Update a time entry with a new project and task identifiers")
-@click.option('-te', '--time-entry-id', 'time_entry_id', required=True, type=int, help="Identifier of the time entry to modify")
-@click.option('-pi', '--project-id', 'project_id', required=True, type=int, help="Identifier of the project")
-@click.option('-ti', '--task-id', 'task_id', required=True, type=int, help="Identifier of the task")
+@click.argument('time_entry_id', type=int)
+@click.argument('project_id', type=int)
+@click.argument('task_id', type=int)
 @click.pass_context
 def update_time_entry(ctx, time_entry_id, project_id, task_id):
     hobj = ctx.obj['harvest']
@@ -291,16 +295,6 @@ def update_all_time_entries(ctx, from_project, from_task, to_project, to_task, n
 
             if result:
                 click.secho(f'Time entry {tid} updated', fg="green")
-
-        # Report if there are remaining entries
-        click.secho('Checking that there aren\'t remaining entries, hold on...', fg="green")
-        data_finished = hobj.time_entries(from_project)
-        data_finished = list(filter(lambda entry: entry['task']['id'] == from_task, data))
-        if len(data_finished)>0:
-            click.secho('List of entries not migrated, maybe run again?', fg="red")
-            if format == "text":
-                for entry in data:
-                    print_entry(entry)
         else:
             click.secho('All entries migrated!', fg="green")
     except Exception as e:

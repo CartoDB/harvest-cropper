@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from setuptools import setup, find_packages
 import os
-from harvest_explorer.cli import VERSION
+from cropper import VERSION
 
 
 def read(fname):
@@ -16,10 +16,10 @@ except:
     import sys
     sys.exit(1)
 
-setup(name="harvest-explorer",
+setup(name="cropper",
       author="Jorge Sanz",
       author_email="jsanz@carto.com",
-      description="An app to migrate Harvest tasks",
+      description="An app to explore Harvest data",
       long_description=read('README.md'),
       long_description_content_type="text/markdown",
       keywords="harvest api",
@@ -30,12 +30,12 @@ setup(name="harvest-explorer",
           "Programming Language :: Python :: 3.7",
       ],
       version=VERSION,
-      url="https://github.com/CartoDB/TBD",
+      url="https://github.com/CartoDB/cropper",
       install_requires=required,
       packages=find_packages(),
       include_package_data=True,
       entry_points='''
 [console_scripts]
-harvest-explorer=harvest_explorer.cli:cli
+cropper=cropper.cli:cli
       '''
       )
