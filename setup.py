@@ -8,15 +8,7 @@ def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
 
-try:
-    with open('requirements.txt') as f:
-        required = f.read().splitlines()
-except:
-    print('some error reading the requirements.txt file')
-    import sys
-    sys.exit(1)
-
-setup(name="cropper",
+setup(name="harvest-cropper",
       author="Jorge Sanz",
       author_email="jsanz@carto.com",
       description="An app to explore Harvest data",
@@ -31,7 +23,10 @@ setup(name="cropper",
       ],
       version=VERSION,
       url="https://github.com/CartoDB/cropper",
-      install_requires=required,
+      install_requires=[
+          "requests==2.21.0",
+          "Click==7.0"
+      ],
       packages=find_packages(),
       include_package_data=True,
       entry_points='''
