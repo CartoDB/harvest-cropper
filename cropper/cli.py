@@ -1,9 +1,10 @@
-import sys
+import sys, traceback
 import click
 from click import ClickException
 import logging
 import json
 import csv
+
 try:
     from StringIO import StringIO
 except ImportError:
@@ -41,7 +42,7 @@ def flatten(obj, entries):
 
     return result
 
-def print_obj(obj, entries, print_active=False):
+def print_obj(obj, entries, print_active=False, template=None):
     """
     Returns a valid CSV row for an object and a list
     of key values to search from, it accepts nested keys using
@@ -52,16 +53,23 @@ def print_obj(obj, entries, print_active=False):
         color = "green" if obj['is_active'] else "yellow"
     else:
         color = "green"
-        
-    with StringIO(newline='') as writer:
-        csv_writer = csv.DictWriter(writer, fieldnames=entries)
-        csv_writer.writerow(flatten(obj,entries))
-        click.secho(writer.getvalue().strip('\r\n'),fg=color)
 
-def print_list_objs(entries, headers, print_active=False):
-    click.secho(",".join(headers),fg="green")
+    flattened = flatten(obj,entries)
+    if template:
+        result = template.format(**flattened)
+    else:
+        with StringIO(newline='') as writer:
+            csv_writer = csv.DictWriter(writer, fieldnames=entries)
+            csv_writer.writerow(flattened)
+            result = writer.getvalue()
+    
+    click.secho(result.strip('\r\n'),fg=color)
+
+def print_list_objs(entries, headers, print_active=False, print_headers=True, template=None):
+    if print_headers:
+        click.secho(",".join(headers),fg="green")
     for entry in entries:
-        print_obj(entry, headers, print_active)
+        print_obj(entry, headers, print_active, template)
 
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.option('-l', '--loglevel', type=click.Choice(['error', 'warn', 'info', 'debug']), default='warn')
@@ -69,9 +77,11 @@ def print_list_objs(entries, headers, print_active=False):
               help="Your Harvest Auth Token, you can set this using the environment variable HARVEST_TOKEN")
 @click.option('-a', '--account-id', 'accountid', required=True, type=str, envvar='HARVEST_ID',
               help="Your Harvest Account ID, you can set this using the environment variable HARVEST_ID")
+@click.option('-u', '--user-id', 'userid', required=False, type=int, envvar='HARVEST_USER_ID',
+              help="Your Harvest User ID, you can set this using the environment variable HARVEST_USER_ID")
 @click.version_option(VERSION, '--version', '-v')
 @click.pass_context
-def cli(ctx, loglevel, token, accountid):
+def cli(ctx, loglevel, token, accountid, userid):
     """
     This command line tool helps you explore your Harvest account and
     modify time entries. Find more details on each command help instructions.
@@ -96,6 +106,7 @@ def cli(ctx, loglevel, token, accountid):
 
         ctx.obj['harvest'] = Harvest(
             logger=logger, token=token, accountid=accountid)
+        ctx.obj['user_id'] = userid
     
 
 
@@ -223,7 +234,7 @@ def task_assignments(ctx, format, project_id):
 def time_entries(ctx, format, project_id, task_id, user_id):
     hobj = ctx.obj['harvest']
     try:
-        data = hobj.time_entries(project_id, user_id = user_id)
+        data = hobj.time_entries(project_id = project_id, user_id = user_id)
         if task_id:
             data = list(filter(lambda entry: entry['task']['id'] == task_id, data))
         if format == "text":
@@ -245,7 +256,7 @@ def time_entry(ctx, format, time_entry_id):
         entry = hobj.time_entry(time_entry_id)
         if format == "text":
             headers = ['id','user__name','task__id','task__name', 'spent_date', 'hours','notes']
-            print_list_objs([data], headers, False)
+            print_list_objs([entry], headers, False)
         else:
             click.echo(json.dumps(entry))
     except Exception as e:
@@ -280,7 +291,7 @@ def update_all_time_entries(ctx, from_project, from_task, to_project, to_task, n
     hobj = ctx.obj['harvest']
     try:
         # Get all the time entries
-        data = hobj.time_entries(from_project)
+        data = hobj.time_entries(project_id = from_project)
         data = filter(lambda entry: entry['task']['id'] == from_task, data)
         for entry in data:
             tid = entry['id']
@@ -297,6 +308,97 @@ def update_all_time_entries(ctx, from_project, from_task, to_project, to_task, n
                 click.secho(f'Time entry {tid} updated', fg="green")
         else:
             click.secho('All entries migrated!', fg="green")
+    except Exception as e:
+        click.secho(str(e), fg='red')
+        ctx.abort
+
+@cli.command(name="running", help="Running time entries")
+@click.option('-f', '--format', 'format', default='text', type=click.Choice(['text', 'json']), help="Output format")
+@click.option('--mine/--all', 'mine', default=True, help="All the entries or just mine")
+@click.pass_context
+def runnnig(ctx, format, mine):
+    hobj = ctx.obj['harvest']
+    try:
+        user_id = ctx.obj['user_id'] if mine else None
+        data = hobj.time_entries(is_running = "true", user_id = user_id)
+
+        if format == "text":
+            data_by_user = {}
+            for d in data:
+                user_name = d['user']['name'] 
+                if user_name in data_by_user:
+                    data_by_user[user_name].append(d)
+                else:
+                    data_by_user[user_name] = [d]
+            
+            headers = ['hours', 'task__name','notes']
+            base_template = "{hours:<4.2f} | {task__name:<30s} | {notes}"
+            for user in data_by_user:
+                if mine:
+                    template = base_template
+                else:
+                    user_first = user.split(' ')[0]
+                    template = "".join([f'{user_first:<10s}| ', base_template ])
+                print_list_objs(
+                    data_by_user[user], 
+                    headers,
+                    print_active = False, 
+                    print_headers = False,
+                    template = template)
+    
+
+        else:
+            click.echo(json.dumps(data))
+    except Exception as e:
+        click.secho(str(e), fg='red')
+
+        exc_traceback = sys.exc_info()[2]
+        click.echo("*** print_tb:")
+        traceback.print_tb(exc_traceback, limit=1, file=sys.stdout)
+        ctx.abort
+
+@cli.command(name="today", help="Today time entries")
+@click.option('-f', '--format', 'format', default='text', type=click.Choice(['text', 'json']), help="Output format")
+@click.option('--mine/--all', 'mine', default=True, help="All the entries or just mine")
+@click.pass_context
+def today(ctx, format, mine):
+    hobj = ctx.obj['harvest']
+    try:
+        user_id = ctx.obj['user_id'] if mine else None
+        data = hobj.time_entries(user_id = user_id, _from = "2019-01-18")
+
+        if format == "text":
+            data_by_user = {}
+            for d in data:
+                user_name = d['user']['name'] 
+                if user_name in data_by_user:
+                    data_by_user[user_name].append(d)
+                else:
+                    data_by_user[user_name] = [d]
+            
+            headers = ['hours', 'project__name', 'task__name','notes', 'is_running']
+            base_template = "{hours:<4.2f} | {is_running:1} | {project__name:<30s} | {task__name:<30s} | {notes}"
+            for user in data_by_user:
+                if mine:
+                    template = base_template
+                else:
+                    user_first = user.split(' ')[0]
+                    template = "".join([f'{user_first:<10s}| ', base_template ])
+                print_list_objs(
+                    data_by_user[user], 
+                    headers,
+                    print_active = False, 
+                    print_headers = False,
+                    template = template)
+                total = sum(map(lambda e : float(e['hours']), data_by_user[user]))
+                if mine:
+                    click.secho(f'Total: {total:4.2f}\r\n',fg="red")
+                else:
+                    click.secho(f'    Total | {total:4.2f}\r\n',fg="red")
+
+
+        else:
+            click.echo(json.dumps(data))
     except Exception as e:
         click.secho(str(e), fg='red')
         ctx.abort

@@ -35,7 +35,7 @@ class Harvest(object):
             parameters (dict): the parameters to add to the GET request
         """
         self.logger.debug(
-            'Making a request to the endpoint {}'.format(endpoint))
+            'Making a request to the endpoint {} with parameters: {}'.format(endpoint, str(parameters)))
         r = self.session.get(url=self.API_URL + endpoint, params=parameters)
         if r.status_code == 200:
             return r.json()
@@ -153,16 +153,20 @@ class Harvest(object):
             endpoint = '/task_assignments'
         return self._get_paged_results(endpoint, 'task_assignments')
 
-    def time_entries(self, projectid, **kwargs):
+    def time_entries(self, **kwargs):
         """
         Gets the list of timesheet entries associated to a project
 
         Parameters:
             projectid (int): the project identifier
         """
-        params = {'project_id': projectid}
+        params = {}
         for key, value in kwargs.items():
-            params[key] = value
+            if value:
+                if key == "_from":
+                    params['from'] = value
+                else:
+                    params[key] = value
 
         return self._get_paged_results('/time_entries', 'time_entries', params)
 
