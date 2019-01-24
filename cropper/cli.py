@@ -4,6 +4,7 @@ from click import ClickException
 import logging
 import json
 import csv
+from datetime import date
 
 try:
     from StringIO import StringIO
@@ -365,7 +366,8 @@ def today(ctx, format, mine):
     hobj = ctx.obj['harvest']
     try:
         user_id = ctx.obj['user_id'] if mine else None
-        data = hobj.time_entries(user_id = user_id, _from = "2019-01-18")
+        today = date.today().isoformat()
+        data = hobj.time_entries(user_id = user_id, _from = today)
 
         if format == "text":
             data_by_user = {}
