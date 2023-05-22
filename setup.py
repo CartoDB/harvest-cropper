@@ -24,7 +24,7 @@ setup(name="harvest-cropper",
       version=VERSION,
       url="https://github.com/CartoDB/cropper",
       install_requires=[
-          "requests==2.21.0",
+          "requests==2.31.0",
           "Click==7.0"
       ],
       packages=find_packages(),
